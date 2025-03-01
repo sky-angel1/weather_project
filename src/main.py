@@ -1,0 +1,6 @@
+print("hello world")
+print("今日もいい天気ですね")
+print("気温は" + str(25) + "度です")
+print("さようなら")
+print("こんばんは" + str(18) + "時です")
+print("おやすみなさい")
