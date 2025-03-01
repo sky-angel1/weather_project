@@ -5,9 +5,11 @@ from deep_translator import GoogleTranslator
 
 API_KEY = "699606031de6a2c3b0c9934019844d8b"
 
+
 def translate_city_name(city_jp):
     """日本語の都市名を英語に翻訳"""
     return GoogleTranslator(source="ja", target="en").translate(city_jp)
+
 
 def get_weather():
     city_jp = city_entry.get()
@@ -24,7 +26,8 @@ def get_weather():
         weather_label.config(text="データ取得に失敗しました")
         temp_label.config(text="")
 
-# ウィンドウ作成
+
+# ウィンドウの作成　ちょっと変更が必要
 root = tk.Tk()
 root.title("天気アプリ")
 
