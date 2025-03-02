@@ -1,4 +1,6 @@
 import tkinter as tk
+import tkinter.simpledialog as simpledialog
+import tkinter.messagebox as messagebox
 import requests
 from PIL import Image, ImageTk
 from io import BytesIO
@@ -8,30 +10,64 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import os, json
 
+
+
 # 日本語表示用フォント設定（Windowsの場合はMS Gothic）
 plt.rcParams["font.family"] = "MS Gothic"
 
-API_KEY = "699606031de6a2c3b0c9934019844d8b"
 CONFIG_FILE = "config.json"
-
 
 def load_config():
     if os.path.exists(CONFIG_FILE):
         with open(CONFIG_FILE, "r", encoding="utf-8") as f:
             config = json.load(f)
-            return config.get("city", "東京")
     else:
-        return "東京"
+        config = {
+            "city": "東京",
+            "api_key": "",
+            "window_geometry": "360x600+100+100",
+            "bg_color": "Pastel Pink",
+        }
+    return config
 
-
-def save_config(city):
+def save_config():
+    # 現在のウィンドウ位置や背景色、都市設定を保存
+    config["window_geometry"] = root.geometry()
+    config["bg_color"] = bg_color_var.get()
+    config["city"] = city_var.get()
     with open(CONFIG_FILE, "w", encoding="utf-8") as f:
-        json.dump({"city": city}, f, ensure_ascii=False)
+        json.dump(config, f, ensure_ascii=False)
 
+# config読み込み
+config = load_config()
+
+# メインウィンドウ生成（configのwindow_geometryを適用）
+root = tk.Tk()
+root.overrideredirect(False)  # まずは標準ウィンドウとして生成
+root.after(10, lambda: root.overrideredirect(True))  # 少し待ってから装飾を消す
+root.title("天気ガジェット")
+root.geometry(config.get("window_geometry", "360x600"))
+root.configure(bg="#ffffff")
+
+
+# APIトークンチェック（未設定の場合、入力を促す）
+if not config.get("api_key"):
+    messagebox.showinfo("APIトークン入力", "APIトークンが必要です。\nAPIトークンは https://openweathermap.org/api から取得できます。")
+    api_token = simpledialog.askstring("APIトークン入力", "OpenWeatherMapのAPIトークンを入力してください:")
+    if api_token:
+        config["api_key"] = api_token.strip()
+        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+            json.dump(config, f, ensure_ascii=False)
+    else:
+        messagebox.showerror("エラー", "APIトークンが入力されませんでした。")
+        root.destroy()
+        exit()
+
+API_KEY = config["api_key"]
 
 # 初期都市リスト
 city_options = ["東京", "大阪", "札幌", "福岡", "名古屋", "京都", "広島"]
-saved_city = load_config()
+saved_city = config.get("city", "東京")
 if saved_city not in city_options:
     city_options.append(saved_city)
 
@@ -52,10 +88,8 @@ bg_colors = {
 # 各都市ごとの履歴データ保持用辞書
 city_history = {}
 
-
 def translate_city_name(city_jp):
     return GoogleTranslator(source="ja", target="en").translate(city_jp)
-
 
 def update_bg_color(*args):
     col = bg_colors.get(bg_color_var.get(), "#fffde7")
@@ -66,10 +100,12 @@ def update_bg_color(*args):
     for widget in forecast_panel.winfo_children():
         widget.config(bg=col)
 
-
 def get_weather():
     city_jp = city_var.get()
-    save_config(city_jp)
+    # 都市設定を保存
+    config["city"] = city_jp
+    with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+        json.dump(config, f, ensure_ascii=False)
     selected_city_label.config(text=f"選択都市: {city_jp}")
     city_eng = translate_city_name(city_jp)
     url = f"http://api.openweathermap.org/data/2.5/weather?q={city_eng}&appid={API_KEY}&units=metric&lang=ja"
@@ -149,7 +185,6 @@ def get_weather():
     else:
         root.geometry("360x460")
 
-
 def update_graph():
     if graph_toggle.get() == "非表示":
         graph_frame.pack_forget()
@@ -164,21 +199,15 @@ def update_graph():
         selection = graph_choice.get()
         if selection == "気温":
             vals = [entry[1] for entry in history]
-            ax.plot(
-                times, vals, marker="o", markersize=3, label="気温(°C)", color="red"
-            )
+            ax.plot(times, vals, marker="o", markersize=3, label="気温(°C)", color="red")
             ax.set_ylabel("気温(°C)", fontsize=9)
         elif selection == "湿度":
             vals = [entry[2] for entry in history]
-            ax.plot(
-                times, vals, marker="s", markersize=3, label="湿度(%)", color="blue"
-            )
+            ax.plot(times, vals, marker="s", markersize=3, label="湿度(%)", color="blue")
             ax.set_ylabel("湿度(%)", fontsize=9)
         elif selection == "風速":
             vals = [entry[3] for entry in history]
-            ax.plot(
-                times, vals, marker="^", markersize=3, label="風速(m/s)", color="green"
-            )
+            ax.plot(times, vals, marker="^", markersize=3, label="風速(m/s)", color="green")
             ax.set_ylabel("風速(m/s)", fontsize=9)
         ax.set_title("天気履歴", fontsize=9)
         ax.set_xlabel("時間", fontsize=9)
@@ -187,22 +216,20 @@ def update_graph():
         fig.subplots_adjust(left=0.2, right=0.95, bottom=0.35)
         canvas.draw()
 
-
 def close_app():
+    save_config()
     root.quit()
     root.destroy()
 
-
+# ヘッダー：ドラッグでウィンドウ移動（全体ではなくヘッダー領域のみ）
 def start_move(event):
     root.x = event.x
     root.y = event.y
-
 
 def move_window(event):
     x = root.winfo_pointerx() - root.x
     y = root.winfo_pointery() - root.y
     root.geometry(f"+{x}+{y}")
-
 
 def add_city():
     new_city = manual_city_entry.get().strip()
@@ -213,29 +240,19 @@ def add_city():
         )
     manual_city_entry.delete(0, tk.END)
 
-
-# メインウィンドウ生成
-root = tk.Tk()
-root.title("天気ガジェット")
-root.geometry("360x600")
-root.configure(bg="#ffffff")
-root.overrideredirect(True)
-root.bind("<ButtonPress-1>", start_move)
-root.bind("<B1-Motion>", move_window)
-
-# メインフレーム（3D外観、余白を削除）
+# メインフレーム生成
 main_frame = tk.Frame(root, bg="#fffde7", bd=5, relief="raised")
-main_frame.pack(expand=True, fill="both")  # padx, pady 削除
+main_frame.pack(expand=True, fill="both")
 
-# ヘッダー：閉じるボタンを含む
-# ヘッダーエリアを作成（既存の main_frame 内の一番上に配置）
+# ヘッダー（閉じるボタン等）
 header_frame = tk.Frame(main_frame, bg="#fffde7")
 header_frame.pack(fill="x")
-
+# ※ウィンドウ移動のバインドをヘッダーに設定
+header_frame.bind("<ButtonPress-1>", start_move)
+header_frame.bind("<B1-Motion>", move_window)
 
 def show_context_menu(event):
     context_menu.post(event.x_root, event.y_root)
-
 
 context_menu = tk.Menu(root, tearoff=0)
 context_menu.add_command(
@@ -246,11 +263,8 @@ context_menu.add_command(
 )
 context_menu.add_separator()
 context_menu.add_command(label="閉じる", command=close_app)
-
-# 右クリック（Button-3）でコンテキストメニューを表示
 header_frame.bind("<Button-3>", show_context_menu)
 
-# 閉じるボタン（ヘッダーエリア右端）
 close_button = tk.Button(
     header_frame,
     text="✖",
@@ -262,14 +276,11 @@ close_button = tk.Button(
 )
 close_button.pack(side="right", padx=5, pady=5)
 
-
-# 透明度スライダー（ヘッダーエリア内、閉じるボタンの左側）
 def set_transparency(val):
     alpha = float(val)
     if alpha < 0.2:
         alpha = 0.2
     root.attributes("-alpha", alpha)
-
 
 transparency_scale = tk.Scale(
     header_frame,
@@ -284,20 +295,17 @@ transparency_scale = tk.Scale(
 transparency_scale.set(0.8)
 transparency_scale.pack(side="left", padx=5)
 
-# 常に最前面チェックボタン（ヘッダーエリア内、透明度スライダーの右側）
-topmost_var = tk.BooleanVar(value=True)
-topmost_check = tk.Checkbutton(
-    header_frame,
-    text="最前面",
-    variable=topmost_var,
-    command=lambda: root.attributes("-topmost", topmost_var.get()),
-    font=("Arial", 9),
-    bg=header_frame["bg"],
-)
-topmost_check.pack(side="left", padx=5)
+# ここで「最前面」チェックボタンは削除し、代わりに現在時刻表示用のラベルを追加
+current_time_label = tk.Label(header_frame, text="", font=("Arial", 9), bg=header_frame["bg"])
+current_time_label.pack(side="left", padx=5)
 
+def update_current_time():
+    current_time_label.config(text=datetime.now().strftime("%H:%M:%S"))
+    root.after(1000, update_current_time)
 
-# 上部：都市選択（上段）
+update_current_time()
+
+# 上部：都市選択
 top_frame = tk.Frame(main_frame, bg="#fffde7")
 top_frame.pack(pady=5, fill="x")
 city_var = tk.StringVar(value=saved_city)
@@ -318,7 +326,7 @@ add_city_button = tk.Button(
     pady=2,
 )
 add_city_button.pack(side=tk.LEFT, padx=5)
-bg_color_var = tk.StringVar(value="Pastel Pink")
+bg_color_var = tk.StringVar(value=config.get("bg_color", "Pastel Pink"))
 bg_optionmenu = tk.OptionMenu(
     top_frame,
     bg_color_var,
@@ -328,7 +336,7 @@ bg_optionmenu = tk.OptionMenu(
 bg_optionmenu.config(font=("Arial", 9))
 bg_optionmenu.pack(side=tk.RIGHT, padx=5)
 
-# 下段：選択都市表示と天気取得ボタンを同じ行に配置
+# 下段：選択都市表示と天気取得ボタン
 action_frame = tk.Frame(main_frame, bg="#fffde7")
 action_frame.pack(pady=2, fill="x")
 selected_city_label = tk.Label(
@@ -348,13 +356,12 @@ update_button = tk.Button(
 )
 update_button.pack(side=tk.RIGHT, padx=5)
 
-# 取得時間表示
 time_label = tk.Label(
     main_frame, text="情報取得時間: --", font=("Arial", 8), bg="#fffde7"
 )
 time_label.pack(pady=2)
 
-# 中央：現在の天気情報と1時間後予報パネル（横並び）
+# 中央：現在の天気情報と1時間後予報パネル
 panels_frame = tk.Frame(main_frame, bg="#fffde7")
 panels_frame.pack(pady=5, fill="x")
 current_panel = tk.LabelFrame(
@@ -464,14 +471,11 @@ graph_frame = tk.Frame(main_frame, bg="#fffde7")
 if graph_toggle.get() == "表示":
     graph_frame.pack(pady=5, fill="both", expand=True)
 fig, ax = plt.subplots(figsize=(3, 2.8))
-# 背景色を変更： "#fffde7"
 fig.patch.set_facecolor("#fffde7")
 ax.set_facecolor("#fffde7")
 canvas = FigureCanvasTkAgg(fig, master=graph_frame)
 canvas.get_tk_widget().pack(expand=True, fill="both")
 
 update_bg_color()
-
-
 get_weather()
 root.mainloop()
