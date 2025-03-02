@@ -147,13 +147,13 @@ def get_weather():
     if graph_toggle.get() == "表示":
         root.geometry("360x600")
     else:
-        root.geometry("360x420")
+        root.geometry("360x460")
 
 
 def update_graph():
     if graph_toggle.get() == "非表示":
         graph_frame.pack_forget()
-        root.geometry("360x420")
+        root.geometry("360x460")
     else:
         graph_frame.pack(pady=5, fill="both", expand=True)
         root.geometry("360x600")  # グラフの縦幅を増やす分、ウィンドウ全体も大きく
@@ -228,8 +228,29 @@ main_frame = tk.Frame(root, bg="#fffde7", bd=5, relief="raised")
 main_frame.pack(expand=True, fill="both")  # padx, pady 削除
 
 # ヘッダー：閉じるボタンを含む
+# ヘッダーエリアを作成（既存の main_frame 内の一番上に配置）
 header_frame = tk.Frame(main_frame, bg="#fffde7")
 header_frame.pack(fill="x")
+
+
+def show_context_menu(event):
+    context_menu.post(event.x_root, event.y_root)
+
+
+context_menu = tk.Menu(root, tearoff=0)
+context_menu.add_command(
+    label="最前面に表示", command=lambda: root.attributes("-topmost", True)
+)
+context_menu.add_command(
+    label="最前面解除", command=lambda: root.attributes("-topmost", False)
+)
+context_menu.add_separator()
+context_menu.add_command(label="閉じる", command=close_app)
+
+# 右クリック（Button-3）でコンテキストメニューを表示
+header_frame.bind("<Button-3>", show_context_menu)
+
+# 閉じるボタン（ヘッダーエリア右端）
 close_button = tk.Button(
     header_frame,
     text="✖",
@@ -240,6 +261,41 @@ close_button = tk.Button(
     relief="raised",
 )
 close_button.pack(side="right", padx=5, pady=5)
+
+
+# 透明度スライダー（ヘッダーエリア内、閉じるボタンの左側）
+def set_transparency(val):
+    alpha = float(val)
+    if alpha < 0.2:
+        alpha = 0.2
+    root.attributes("-alpha", alpha)
+
+
+transparency_scale = tk.Scale(
+    header_frame,
+    from_=0.2,
+    to=1.0,
+    resolution=0.05,
+    orient="horizontal",
+    label="透明度",
+    command=set_transparency,
+    font=("Arial", 9),
+)
+transparency_scale.set(0.8)
+transparency_scale.pack(side="left", padx=5)
+
+# 常に最前面チェックボタン（ヘッダーエリア内、透明度スライダーの右側）
+topmost_var = tk.BooleanVar(value=True)
+topmost_check = tk.Checkbutton(
+    header_frame,
+    text="最前面",
+    variable=topmost_var,
+    command=lambda: root.attributes("-topmost", topmost_var.get()),
+    font=("Arial", 9),
+    bg=header_frame["bg"],
+)
+topmost_check.pack(side="left", padx=5)
+
 
 # 上部：都市選択（上段）
 top_frame = tk.Frame(main_frame, bg="#fffde7")
@@ -415,6 +471,7 @@ canvas = FigureCanvasTkAgg(fig, master=graph_frame)
 canvas.get_tk_widget().pack(expand=True, fill="both")
 
 update_bg_color()
+
 
 get_weather()
 root.mainloop()
